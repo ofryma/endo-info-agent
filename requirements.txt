@@ -11,3 +11,4 @@ pyaudio
 SpeechRecognition
 scholarly==1.7.11
 colorama
+python-telegram-bot>=20.0

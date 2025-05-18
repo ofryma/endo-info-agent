@@ -10,10 +10,10 @@ class SpeakingCallbackHandler(StreamingStdOutCallbackHandler):
         self.engine.setProperty('rate', 200)
         self.engine.setProperty('volume', 0.9)
         
-        # Try to set a male voice if available
+        # Try to set a female voice if available
         voices = self.engine.getProperty('voices')
         for voice in voices:
-            if 'male' in voice.name.lower():
+            if 'female' in voice.name.lower():
                 self.engine.setProperty('voice', voice.id)
                 break
         

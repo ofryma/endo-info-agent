@@ -1,4 +1,5 @@
-import json
+import json    
+import re
 from typing import List
 
 from colorama import Back, Fore, Style
@@ -10,11 +11,11 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.tools import Tool
 from langchain.callbacks.manager import CallbackManager
 from langchain.output_parsers import PydanticOutputParser
-from tools.search import AgentResult
-from tools.save import SaveTool
-
+from agents.models.response import AgentResult
+from langchain.memory import ConversationBufferMemory
 
 class LLMAgent:
+
     def __init__(self, model: str = 'llama2', *, tools: List[Tool] = [], callback_manager: CallbackManager = None , verbose: bool = False):
         # Initialize the callback handler with text-to-speech
         # self.callback_handler = SpeakingCallbackHandler()
@@ -30,18 +31,21 @@ class LLMAgent:
         )
         
         # Define tools the agent can use
-        self.tools = tools + [SaveTool()]
+        self.tools = tools
+        
+        self.memory = ConversationBufferMemory(return_messages=True)
 
         # Create the prompt template
         self.output_parser = PydanticOutputParser(pydantic_object=AgentResult)
 
-        with open('agents/prompt_template.txt', 'r') as f:
-            prompt_template = f.read()
+        with open('agents/system_prompt_template.txt', 'r') as f:
+            system_prompt_template = f.read()
+        with open('agents/user_prompt_template.txt', 'r') as f:
+            user_prompt_template = f.read()
 
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", prompt_template),
-            ("placeholder", "{chat_history}"),
-            ("human", "{query}"),
+            ("system", system_prompt_template),
+            ("user", user_prompt_template),
             ("placeholder", "{agent_scratchpad}")
         ]).partial(format_instructions=self.output_parser.get_format_instructions())
 
@@ -49,7 +53,7 @@ class LLMAgent:
         self.agent = create_tool_calling_agent(
             llm=self.llm,
             tools=self.tools,
-            prompt=self.prompt
+            prompt=self.prompt,
         )
 
         # Create the agent executor
@@ -57,9 +61,20 @@ class LLMAgent:
             agent=self.agent,
             tools=self.tools,
             verbose=True,
-            handle_parsing_errors=True
+            handle_parsing_errors=True,
+            max_iterations=10,
+            return_intermediate_steps=True,
         )
-    
+
+    def extract_json(self, text: str) -> str:
+        try:
+            json_match = re.search(r"\{.*\}", text, re.DOTALL)
+            if json_match:
+                return json_match.group()
+        except Exception as e:
+            print("Error during JSON extraction:", e)
+        return None
+
     def agent_print(self, message: str):
         print(Fore.YELLOW + f"{message}\n" + Style.RESET_ALL)
 
@@ -73,28 +88,13 @@ class LLMAgent:
         Returns:
             AgentResult: The agent's response
         """
+
         try:
-            result = self.agent_executor.invoke({"query": input_text})
-            print(Fore.GREEN + "-"*50 + Style.RESET_ALL)
-            print(result)
-            print(Fore.GREEN + "-"*50 + Style.RESET_ALL)
+            result = self.agent_executor.invoke({"input": input_text})
             
-            # Parse the result
-            agent_result = AgentResult(**json.loads(result['output']))
-            
-            # Check if save was requested
-            if "save" in input_text.lower():
-                # Find the save tool
-                save_tool = next((tool for tool in self.tools if tool.name == "save_to_file"), None)
-                if save_tool:
-                    save_result = save_tool.run(result['output'])
-                    print(Fore.BLUE + f"\nSave result: {save_result}" + Style.RESET_ALL)
-            
-            return agent_result
+            structured_result = self.output_parser.parse(self.extract_json(result.get('output')))
+            return structured_result
+        
         except Exception as e:
             error_message = f"Error: {str(e)}"
-            return AgentResult(
-                title="Error",
-                description=error_message,
-                tools_used=[]
-            )
+            return error_message

@@ -1,0 +1,4 @@
+Task: {input}
+You can call tools in sequence. Each tool result must be saved and used explicitly.
+Your final response must follow this JSON format:
+{format_instructions}

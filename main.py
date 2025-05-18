@@ -1,29 +1,17 @@
-from typing import List
-
-from dotenv import load_dotenv
-from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.tools import Tool
-from langchain_community.llms import Ollama
-from langchain.callbacks.manager import CallbackManager
 from colorama import Fore, Back, Style
 
+from tools.search_tools import scholar_article_search , wikipedia_search
+from tools.save_tools import save_file
 from utils.stt import SpeakingCallbackHandler
 from agents.llm_agent import LLMAgent
-
-from tools.search import wikipedia_tool, search_web_tool
 from utils.speech_recognition_util import SpeechRecognizer
-
-
-
-# Load environment variables
-load_dotenv()
-
+from tools.telegram_tools import send_telegram_message
 TOOLS = [
-    wikipedia_tool,
-    # search_web_tool,
+    scholar_article_search,
+    wikipedia_search,
+    save_file,
+    send_telegram_message
 ]
-
 
 def main():
     
@@ -43,7 +31,11 @@ def main():
     
     while True:
         print("\n" + "="*50)
+
         user_input = input(Fore.CYAN + "> ")
+
+        # user_input = "Research about machine learning. Save research content in a file."
+        # print(Fore.CYAN + "> " + user_input)
 
         print(Style.RESET_ALL + "\n" + "="*50)
         
@@ -62,10 +54,12 @@ def main():
 
         response = agent.run(user_input)
 
-        if response.title == 'Error':
-            agent.agent_print(Fore.RED + f"{response.title}: {response.description}\n")
 
-        print(Style.RESET_ALL)
+        print("-"*50)
+        agent.agent_print(response)
+        print("-"*50)
+
+        break
 
 if __name__ == "__main__":
-    main() 
+    main()
